@@ -1,0 +1,311 @@
+import random # библиотека для случайного выбора
+import os # для работы с файловой системой и очистки экрана
+from datetime import datetime # для записи времени и даты игры в статистику
+
+class krestikinoliki: #основной класс игры 
+    def __init__(self):
+        self.doska = []
+        self.razmer = 0
+        self.tekuschiy_igrok = ''
+        self.igra_zavershena = False # флаг завершения игры
+        self.pobeditel = None # победитель (X, O или None для ничьи)
+        self.fail_statistiki = "game_stats/stats.txt" # файл статистики
+        self.sozdat_papku_statistiki() # создает папку для статистики
+        self.statistika = self.zagruzit_statistiku() # загружает статистику 
+        
+    def sozdat_papku_statistiki(self): # создает папку для файла статистики, если она не существует
+        papka_statistiki = os.path.dirname(self.fail_statistiki)
+        if papka_statistiki and not os.path.exists(papka_statistiki):
+            os.makedirs(papka_statistiki)
+    
+    def zagruzit_statistiku(self): # загружает статистику из файла. если файла нет, то возвращает статистику по умолчанию.
+        statistika_po_umolchaniyu = {
+            "vsego_igr": 0,
+            "pobedy_x": 0,
+            "pobedy_o": 0,
+            "nichii": 0,
+            "istoriya_igr": []
+        }
+        
+        try:
+            if os.path.exists(self.fail_statistiki):
+                with open(self.fail_statistiki, 'r', encoding='utf-8') as f:
+                    soderzhimoe = f.read().strip()
+                    if not soderzhimoe:
+                        return statistika_po_umolchaniyu
+                    
+                    stroki = soderzhimoe.split('\n')
+                    statistika = statistika_po_umolchaniyu.copy()
+                    
+                    for stroka in stroki:
+                        if stroka.startswith("Всего игр:"):
+                            statistika["vsego_igr"] = int(stroka.split(":")[1])
+                        elif stroka.startswith("Победы X:"):
+                            statistika["pobedy_x"] = int(stroka.split(":")[1])
+                        elif stroka.startswith("Победы O:"):
+                            statistika["pobedy_o"] = int(stroka.split(":")[1])
+                        elif stroka.startswith("Ничьи:"):
+                            statistika["nichii"] = int(stroka.split(":")[1])
+                        elif stroka.startswith("Игра:"):
+                            dannye_igry = stroka.split(":")[1].split("|")
+                            if len(dannye_igry) == 4:
+                                zapis_ob_igre = {
+                                    "data": dannye_igry[0],
+                                    "razmer_doski": int(dannye_igry[1]),
+                                    "pobeditel": dannye_igry[2],
+                                    "pervyy_igrok": dannye_igry[3]
+                                }
+                                statistika["istoriya_igr"].append(zapis_ob_igre)
+                    
+                    return statistika
+        except Exception:
+            pass
+        
+        return statistika_po_umolchaniyu
+    
+    def sohranit_statistiku(self): # сохраняет текущую статистику в файл
+        try:
+            with open(self.fail_statistiki, 'w', encoding='utf-8') as f:
+                f.write("Всего игр:" + str(self.statistika['vsego_igr']) + "\n")
+                f.write("Победы X:" + str(self.statistika['pobedy_x']) + "\n")
+                f.write("Победы O:" + str(self.statistika['pobedy_o']) + "\n")
+                f.write("Ничьи:" + str(self.statistika['nichii']) + "\n")
+                
+                for igra in self.statistika["istoriya_igr"]:
+                    f.write("Игра:" + igra['data'] + "|" + str(igra['razmer_doski']) + "|" + igra['pobeditel'] + "|" + igra['pervyy_igrok'] + "\n")
+        except Exception as e:
+            print("Ошибка при сохранении статистики: " + str(e))
+    
+    def obnovit_statistiku(self, pobeditel, razmer_doski): # обновляет статистику после завершения игры
+        self.statistika["vsego_igr"] += 1
+        
+        if pobeditel == 'X':
+            self.statistika["pobedy_x"] += 1
+        elif pobeditel == 'O':
+            self.statistika["pobedy_o"] += 1
+        else:
+            self.statistika["nichii"] += 1
+        
+        zapis_ob_igre = {
+            "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "razmer_doski": razmer_doski,
+            "pobeditel": pobeditel if pobeditel else "Ничья",
+            "pervyy_igrok": self.poluchit_pervogo_igroka_iz_istorii()
+        }
+        
+        self.statistika["istoriya_igr"].append(zapis_ob_igre)
+        
+        if len(self.statistika["istoriya_igr"]) > 100:
+            self.statistika["istoriya_igr"] = self.statistika["istoriya_igr"][-100:]
+        
+        self.sohranit_statistiku()
+    
+    def poluchit_pervogo_igroka_iz_istorii(self):
+        return 'X' if self.tekuschiy_igrok == 'X' else 'O'
+    
+    def pokazat_statistiku(self): # показывает краткую статистику после игры 
+        statistika = self.statistika
+        vsego_igr = statistika["vsego_igr"]
+        
+        print("Статистика игр")
+        
+        if vsego_igr == 0:
+            print("Пока нет сыгранных игр.")
+            return
+        
+        print("Всего игр: " + str(vsego_igr))
+        print("Побед X: " + str(statistika['pobedy_x']) + " (" + str(round(statistika['pobedy_x']/vsego_igr*100, 1) if vsego_igr > 0 else 0) + "%)")
+        print("Побед O: " + str(statistika['pobedy_o']) + " (" + str(round(statistika['pobedy_o']/vsego_igr*100, 1) if vsego_igr > 0 else 0) + "%)")
+        print("Ничьи: " + str(statistika['nichii']) + " (" + str(round(statistika['nichii']/vsego_igr*100, 1) if vsego_igr > 0 else 0) + "%)")
+        
+        print("\nПоследние игры:")
+        poslednie_igry = statistika["istoriya_igr"][-5:]
+        for igra in reversed(poslednie_igry):
+            print("  " + igra['data'] + " - Поле: " + str(igra['razmer_doski']) + "x" + str(igra['razmer_doski']) + ", Победитель: " + igra['pobeditel'])
+    
+    def ochistit_ekran(self): # очищает экран консоли
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    def poluchit_razmer_doski(self): # запрашивает у пользователя размер игрового поля
+        while True:
+            try:
+                razmer = int(input("Введите размер игрового поля (Например, 3 для 3x3): "))
+                if razmer >= 3:
+                    return razmer
+                else:
+                    print("Размер поля должен быть не менее 3.")
+            except ValueError:
+                print("Пожалуйста, введите целое число.")
+    
+    def inicializirovat_dosku(self): # создает пустое игровое поле заданного размера
+        self.doska = [[' ' for _ in range(self.razmer)] for _ in range(self.razmer)]
+    
+    def vibrat_pervogo_igroka(self): # случайным образом выбирает игрока, который будет ходить первым
+        return 'X' if random.choice([True, False]) else 'O'
+    
+    def pechatat_dosku(self): # отображает игровое поле с координатами
+        print("\n   " + "   ".join(str(i) for i in range(self.razmer)))
+        for i in range(self.razmer):
+            print(str(i) + "  " + " | ".join(self.doska[i]))
+            if i < self.razmer - 1:
+                print("   " + "---" * (self.razmer * 2 - 1))
+        print()
+    
+    def hod_korrekten(self, stroka, stolbec): # проверяет является ли ход допустимым (в пределах поля/в незанятую клетку)
+        return (0 <= stroka < self.razmer and 
+                0 <= stolbec < self.razmer and 
+                self.doska[stroka][stolbec] == ' ')
+    
+    def sdelat_hod(self, stroka, stolbec): # выполняет ход если он возможен
+        if self.hod_korrekten(stroka, stolbec):
+            self.doska[stroka][stolbec] = self.tekuschiy_igrok
+            return True
+        return False
+    
+    def proverit_pobeditelya(self): # проверяет, выиграл ли текущий игрок (по горизонталям, вертикалям и диагоналям)
+        for ryad in self.doska:
+            if all(yacheyka == self.tekuschiy_igrok for yacheyka in ryad):
+                return True
+        
+        for stolbec in range(self.razmer):
+            if all(self.doska[stroka][stolbec] == self.tekuschiy_igrok for stroka in range(self.razmer)):
+                return True
+        
+        if all(self.doska[i][i] == self.tekuschiy_igrok for i in range(self.razmer)):
+            return True
+        
+        if all(self.doska[i][self.razmer-1-i] == self.tekuschiy_igrok for i in range(self.razmer)):
+            return True
+        
+        return False
+    
+    def doska_polna(self): # проверяет, заполнено ли все поле 
+        for ryad in self.doska:
+            if ' ' in ryad:
+                return False
+        return True
+    
+    def smenit_igroka(self): # меняет текущего игрока
+        self.tekuschiy_igrok = 'O' if self.tekuschiy_igrok == 'X' else 'X'
+    
+    def poluchit_hod_igroka(self): # запрашивает и проверяет ход, полученный от игрока
+        while True:
+            try:
+                hod = input("Игрок " + self.tekuschiy_igrok + ", введите ваш ход (строка столбец): ")
+                stroka, stolbec = map(int, hod.split())
+                if self.hod_korrekten(stroka, stolbec):
+                    return stroka, stolbec
+                else:
+                    print("Некорректный ход. Попробуйте ещё раз")
+            except (ValueError, IndexError):
+                print("Пожалуйста, введите 2 числа через пробел (Например: '1 2')")
+    
+    def igrat_v_igru(self): # основной метод игры (настраивает, запускает цикл всей игры, обрабатывает ходы, проверяет условия, обновляет статистику)
+        self.ochistit_ekran()
+        print("     Крестики-Нолики    \n")
+        
+        self.razmer = self.poluchit_razmer_doski()
+        self.inicializirovat_dosku()
+        self.tekuschiy_igrok = self.vibrat_pervogo_igroka()
+        self.igra_zavershena = False
+        self.pobeditel = None
+        
+        print("\nПервым ходит следующий игрок: " + self.tekuschiy_igrok)
+        
+        while not self.igra_zavershena:
+            self.pechatat_dosku()
+            
+            stroka, stolbec = self.poluchit_hod_igroka()
+            
+            if self.sdelat_hod(stroka, stolbec):
+                if self.proverit_pobeditelya():
+                    self.igra_zavershena = True
+                    self.pobeditel = self.tekuschiy_igrok
+                elif self.doska_polna():
+                    self.igra_zavershena = True
+                else:
+                    self.smenit_igroka()
+            
+            self.ochistit_ekran()
+        
+        self.pechatat_dosku()
+        if self.pobeditel:
+            print("Поздравляем. Игрок " + self.pobeditel + " одержал победу.")
+        else:
+            print("Ничья.")
+        
+        self.obnovit_statistiku(self.pobeditel, self.razmer)
+        self.pokazat_statistiku()
+    
+    def sprosit_igrat_esche(self): # запрос у пользователя о том, какое действие он хочет совершить
+        while True:
+            print("\nВыберите действие: ")
+            print("1 - Новая игра.")
+            print("2 - Показать полную статистику.")
+            print("3 - Выйти из игры.")
+            
+            vybor = input("Ваш выбор (1-3): ").strip()
+            
+            if vybor == '1':
+                return True
+            elif vybor == '2':
+                self.pokazat_polnuyu_statistiku()
+                continue
+            elif vybor == '3':
+                return False
+            else:
+                print("Пожалуйста, введите 1, 2 или 3.")
+    
+    def pokazat_polnuyu_statistiku(self): # показывает полную статистику с разбивкой по размерам полей.
+        self.ochistit_ekran()
+        statistika = self.statistika
+        vsego_igr = statistika["vsego_igr"]
+        
+        print("Полная статистика игр")
+        
+        if vsego_igr == 0:
+            print("Пока нет сыгранных игр.")
+            return
+        
+        print("Всего игр: " + str(vsego_igr))
+        print("Побед X: " + str(statistika['pobedy_x']) + " (" + str(round(statistika['pobedy_x']/vsego_igr*100, 1) if vsego_igr > 0 else 0) + "%)")
+        print("Побед O: " + str(statistika['pobedy_o']) + " (" + str(round(statistika['pobedy_o']/vsego_igr*100, 1) if vsego_igr > 0 else 0) + "%)")
+        print("Ничьи: " + str(statistika['nichii']) + " (" + str(round(statistika['nichii']/vsego_igr*100, 1) if vsego_igr > 0 else 0) + "%)")
+        
+        statistika_po_razmeram = {}
+        for igra in statistika["istoriya_igr"]:
+            razmer = igra["razmer_doski"]
+            if razmer not in statistika_po_razmeram:
+                statistika_po_razmeram[razmer] = {"vsego": 0, "pobedy_x": 0, "pobedy_o": 0, "nichii": 0}
+            statistika_po_razmeram[razmer]["vsego"] += 1
+            if igra["pobeditel"] == "X":
+                statistika_po_razmeram[razmer]["pobedy_x"] += 1
+            elif igra["pobeditel"] == "O":
+                statistika_po_razmeram[razmer]["pobedy_o"] += 1
+            else:
+                statistika_po_razmeram[razmer]["nichii"] += 1
+        
+        print("\nСтатистика по размерам полей:")
+        for razmer in sorted(statistika_po_razmeram.keys()):
+            s = statistika_po_razmeram[razmer]
+            print("  " + str(razmer) + "x" + str(razmer) + ": " + str(s['vsego']) + " игр - X: " + str(s['pobedy_x']) + ", O: " + str(s['pobedy_o']) + ", Ничьи: " + str(s['nichii']))
+        
+        input("\nНажмите Enter для продолжения...")
+
+def main(): # точка входа в программу, создает объект игры и запускает основной цикл
+    igra = krestikinoliki()
+    
+    print("Игра Крестики-Нолики")
+    print("Статистика сохраняется в файл: " + igra.fail_statistiki)
+    
+    while True:
+        igra.igrat_v_igru()
+        
+        if not igra.sprosit_igrat_esche():
+            print("\nСпасибо за игру.")
+            break
+        
+        print("Начало новой игры")
+
+if __name__ == "__main__":
+    main()
